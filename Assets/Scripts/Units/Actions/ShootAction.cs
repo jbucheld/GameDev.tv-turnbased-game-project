@@ -25,6 +25,8 @@ public class ShootAction : ActionParentClass
     private float stateCooldown = 0.5f;
     [SerializeField] int shootingRange = 6;
     [SerializeField] private int basicDamage = 40;
+    [SerializeField] private LayerMask obstaclesLayerMask;
+    private float unitShoulderHeightOffset = 1.4f;
     
     private Unit targetUnit;
     private bool canShootBullet;
@@ -114,18 +116,31 @@ public class ShootAction : ActionParentClass
             {
                 GridPosition offsetGridPosition = new GridPosition(x, z);
                 GridPosition testGridPosition = unitGridPosition + offsetGridPosition;
-
                 // check if position exists in LevelGrid
                 if (!LevelGrid.Instance.IsValidGridPosition(testGridPosition)) continue;
+                // check if GridPosition isn't empty
+                if (!LevelGrid.Instance.HasAnyUnit(testGridPosition)) continue;
+                Unit testTargetUnit = LevelGrid.Instance.GetUnitAtGridPosition(testGridPosition);
 
+                // checks if target exceeds maximum range
                 int testDistance = Mathf.Abs(x) + Mathf.Abs(z);
                 if (testDistance > shootingRange) continue;
                 
-                // check if GridPosition isn't empty
-                if (!LevelGrid.Instance.HasAnyUnit(testGridPosition)) continue;
-
-                Unit targetUnit = LevelGrid.Instance.GetUnitAtGridPosition(testGridPosition);
-                if (targetUnit.IsEnemy() == parentUnit.IsEnemy()) continue;
+                // checks if target is an Enemy
+                if (testTargetUnit.IsEnemy() == parentUnit.IsEnemy()) continue;
+                
+                // check if there is a path to shoot
+                Vector3 unitShootDirection = (testTargetUnit.GetWorldPosition() - parentUnit.GetWorldPosition()).normalized ;
+                
+                if (Physics.Raycast(
+                        parentUnit.GetWorldPosition() + Vector3.up * unitShoulderHeightOffset,
+                        unitShootDirection,
+                        Vector3.Distance(parentUnit.GetWorldPosition(), testTargetUnit.GetWorldPosition()),
+                        obstaclesLayerMask))
+                {
+                    // blocked by obstacle
+                    continue;
+                }
                 
                 validGridPositionList.Add(testGridPosition);
             }

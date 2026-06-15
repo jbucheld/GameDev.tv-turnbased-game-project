@@ -1,10 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 public class LevelGrid : MonoBehaviour
 {
     public static LevelGrid Instance { get; private set; }
+    
+    [Header("Map dimensions")]
+    [SerializeField] private int width;
+    [SerializeField] private int length;
+    [SerializeField] private float cellSize;
     
     public event EventHandler OnAnyUnitMovedGridPosition;
     
@@ -19,11 +25,14 @@ public class LevelGrid : MonoBehaviour
             Destroy(gameObject);
             return;
         }
-
         Instance = this;
         
-        gridSystem = new GridSystem<GridObject>(10, 10, 2f, (GridSystem<GridObject> g, GridPosition gridPosition) => new GridObject(g, gridPosition));
-        // gridSystem.CreateDebugObjects(gridObject);
+        gridSystem = new GridSystem<GridObject>(width, length, cellSize, (GridSystem<GridObject> g, GridPosition gridPosition) => new GridObject(g, gridPosition));
+    }
+
+    private void Start()
+    {
+        Pathfinding.Instance.Setup(width, length, cellSize);
     }
 
     public void AddUnitAtGridPosition(GridPosition gridPosition, Unit unit)

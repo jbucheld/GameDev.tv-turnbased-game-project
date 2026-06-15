@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using NUnit.Framework;
 using UnityEngine;
 
 public class MoveAction : ActionParentClass
 {
-    private Vector3 targetPosition;
+    private List<Vector3> targetPositionPath;
+    private int currentPathPositionIndex;
     private GridPosition currentGridPosition;
     public event EventHandler OnUnitStartMoving;
     public event EventHandler OnUnitStopMoving;
@@ -14,17 +16,8 @@ public class MoveAction : ActionParentClass
     [SerializeField] private float unitMoveSpeed = 4f;
     [SerializeField] private float unitRotationSpeed = 12f;
     [SerializeField] private int maxMoveDistance = 4;
-
-    // [SerializeField] private Animator _animator;
-    // private bool isMoving = false;
     
-    
-    protected override void Awake()
-    {
-        base.Awake();
-        targetPosition = this.transform.position;
-    }
-    
+   
 
     private void Start()
     {
@@ -39,27 +32,40 @@ public class MoveAction : ActionParentClass
 
     public void OrderMove(GridPosition givenOrderPosition)
     {
-        targetPosition = LevelGrid.Instance.GetWorldPosition(givenOrderPosition);
+        currentPathPositionIndex = 0;
+        List<GridPosition> gridPositionMovementPath = Pathfinding.Instance.FindPath(parentUnit.GetGridPosition(), givenOrderPosition, out int pathLength);
+        
+        targetPositionPath = new List<Vector3>();
+        foreach (GridPosition gridPosition in gridPositionMovementPath)
+        {
+            targetPositionPath.Add(LevelGrid.Instance.GetWorldPosition(gridPosition));
+        }
+        
         OnUnitStartMoving?.Invoke(this, EventArgs.Empty);
     }
     
     private void Move()
     {
         // targetPosition = LevelGrid.Instance.GetWorldPosition(givenOrderPosition);
+        Vector3 targetPosition = targetPositionPath[currentPathPositionIndex]; 
         Vector3 moveDirection = (targetPosition - transform.position).normalized;
+        transform.forward = Vector3.Lerp(transform.forward, moveDirection, Time.deltaTime * unitRotationSpeed);
 
         // apply simple move mechanism
         if (Vector3.Distance(transform.position, targetPosition) > stoppingDistance)
         {
             transform.position +=  moveDirection * (Time.deltaTime * unitMoveSpeed);
-            transform.forward = Vector3.Lerp(transform.forward, moveDirection, Time.deltaTime * unitRotationSpeed);
             
         }
         else
         {
             CheckGridPosition();
-            ActionEnd(onActionComplete);
-            OnUnitStopMoving?.Invoke(this, EventArgs.Empty);
+            currentPathPositionIndex++;
+            if (currentPathPositionIndex >= targetPositionPath.Count)
+            {
+                ActionEnd(onActionComplete);    
+                OnUnitStopMoving?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
 
@@ -92,7 +98,16 @@ public class MoveAction : ActionParentClass
                 // check if unit isn't standing at target position;
                 if (parentUnit.GetGridPosition() == testGridPosition) continue;
                 // check for other units standing at target position
-                if (LevelGrid.Instance.HasAnyUnit(testGridPosition)) continue;                
+                if (LevelGrid.Instance.HasAnyUnit(testGridPosition)) continue;      
+                // check if position isWalkable
+                if (!Pathfinding.Instance.IsWalkableGridPosition(testGridPosition)) continue;
+                // check if there is a way to reach a target
+                if (!Pathfinding.Instance.hasPathAvailable(parentUnit.GetGridPosition(), testGridPosition)) continue;
+
+                int pathfindingDistanceMultiplier = 10;
+                if ((Pathfinding.Instance.GetPathLength(parentUnit.GetGridPosition(), testGridPosition) 
+                     > maxMoveDistance * pathfindingDistanceMultiplier)) continue;
+                
                 
                 validGridPositionList.Add(testGridPosition);
             }
